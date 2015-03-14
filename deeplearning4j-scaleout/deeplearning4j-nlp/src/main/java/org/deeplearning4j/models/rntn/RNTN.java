@@ -68,7 +68,7 @@ import org.nd4j.linalg.api.rng.Random;
 public class RNTN implements Layer {
 
     protected double value = 0;
-    private int numOuts = 3;
+    private int numOuts = 5;
     //must be same size as word vectors
     private int numHidden = 25;
     private Random rng;
@@ -351,30 +351,11 @@ public class RNTN implements Layer {
      * Trains the network on this mini batch
      * @param trainingBatch the trees to iterate on
      */
-    public void fit(List<Tree> trainingBatch) {
-        this.trainingTrees = trainingBatch;
-        int count = 0;
-        for(final Tree t : trainingBatch) {
-            log.info("Working mini batch " + count++);
-            Futures.future(new Callable<Object>() {
-                @Override
-                public Object call() throws Exception {
-                    forwardPropagateTree(t);
-                    try {
-                        INDArray params = getParameters();
-                        INDArray gradient = getValueGradient();
-                        if(params.length() != gradient.length())
-                            throw new IllegalStateException("Params not equal to gradient!");
-                        setParameters(params.subi(gradient));
-                    }catch(NegativeArraySizeException e) {
-                        log.warn("Couldnt compute parameters due to negative array size...for trees " + t);
-                    }
-
-                    return null;
-                }
-            },rnTnActorSystem.dispatcher());
-
-
+    public void fit(List<Tree> trainingTrees, int numberOfIterations) {
+        for (int i = 0; i < numberOfIterations; i++) {
+            System.out.println("Iteracja " + i);
+            INDArray gradient = getValueGradient(trainingTrees);
+            setParameters(getParameters().subi(gradient));
         }
     }
 
@@ -753,7 +734,6 @@ public class RNTN implements Layer {
 
             INDArray childrenVector = Nd4j.appendBias(leftVector,rightVector);
 
-
             if (useDoubleTensors) {
                 INDArray doubleT = getBinaryINDArray(leftCategory, rightCategory);
                 INDArray INDArrayIn = Nd4j.concat(0,leftVector, rightVector);
@@ -869,7 +849,7 @@ public class RNTN implements Layer {
     }
 
 
-    public INDArray getValueGradient() {
+    public INDArray getValueGradient(List<Tree> trainingTrees) {
 
 
         // We use TreeMap for each of these so that they stay in a
@@ -928,49 +908,21 @@ public class RNTN implements Layer {
             wordVectorD.put(s, Nd4j.create(numRows, numCols));
         }
 
-
-        final List<Tree> forwardPropTrees = new CopyOnWriteArrayList<>();
-        if(!forwardPropTrees.isEmpty())
-            Parallelization.iterateInParallel(trainingTrees,new Parallelization.RunnableWithParams<Tree>() {
-
-                public void run(Tree currentItem, Object[] args) {
-                    Tree trainingTree = new Tree(currentItem);
-                    trainingTree.connect(new ArrayList<>(currentItem.children()));
-                    // this will attach the error vectors and the node vectors
-                    // to each node in the tree
-                    forwardPropagateTree(trainingTree);
-                    forwardPropTrees.add(trainingTree);
-
-                }
-            },rnTnActorSystem);
-
-
-
-
-
-
-        // TODO: we may find a big speedup by separating the derivatives and then summing
-        final AtomicDouble error = new AtomicDouble(0);
-        if(!forwardPropTrees.isEmpty())
-            Parallelization.iterateInParallel(forwardPropTrees,new Parallelization.RunnableWithParams<Tree>() {
-
-                public void run(Tree currentItem, Object[] args) {
-                    backpropDerivativesAndError(currentItem, binaryTD, binaryCD, binaryINDArrayTD, unaryCD, wordVectorD);
-                    error.addAndGet(currentItem.errorSum());
-
-                }
-            },new Parallelization.RunnableWithParams<Tree>() {
-
-                public void run(Tree currentItem, Object[] args) {
-                }
-            },rnTnActorSystem,new Object[]{ binaryTD, binaryCD, binaryINDArrayTD, unaryCD, wordVectorD});
+        int error = 0;
+        int index = 0;
+        for (Tree trainingTree : trainingTrees) {
+            System.out.println("Zrobione zdanie " + (index++));
+            forwardPropagateTree(trainingTree);
+            backpropDerivativesAndError(trainingTree, binaryTD, binaryCD, binaryINDArrayTD, unaryCD, wordVectorD);
+            error += trainingTree.errorSum();
+        }
 
 
 
         // scale the error by the number of sentences so that the
         // regularization isn't drowned out for large training batchs
         double scale = trainingTrees == null || trainingTrees.isEmpty() ? 1.0f :  (1.0f / trainingTrees.size());
-        value = error.doubleValue() * scale;
+        value = error * scale;
 
         value += scaleAndRegularize(binaryTD, binaryTransform, scale, regTransformMatrix);
         value += scaleAndRegularize(binaryCD, binaryClassification, scale, regClassification);

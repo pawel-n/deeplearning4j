@@ -39,6 +39,7 @@ import org.junit.Test;
 import org.nd4j.linalg.api.ndarray.INDArray;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -104,12 +105,12 @@ public class BasicRNTNTest {
                 .setRandomFeatureVectors(false)
                 .setUseTensors(true).build();
         INDArray params = rntn.getParameters();
-        INDArray gradient = rntn.getValueGradient();
+        INDArray gradient = rntn.getValueGradient(new ArrayList<Tree>());
         rntn.setParameters(params);
         assertEquals(params.length(),gradient.length());
 
         List<Tree> trees = vectorizer.getTreesWithLabels(sentence,Arrays.asList("LABEL"));
-        rntn.fit(trees);
+        rntn.fit(trees, 1);
 
 
     }
