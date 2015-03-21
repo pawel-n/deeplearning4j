@@ -3,5 +3,8 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 
 public class Tree {
     public INDArray cache;
+    public void clearCache() {
+        cache = null;
+    }
 }
 
