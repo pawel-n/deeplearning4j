@@ -62,7 +62,7 @@ public class RNN implements Serializable {
 
     /**
      * Trains the network on a set of trees.
-     * @param trees The trees with labels.
+     * @param labeledTrees The trees with labels.
      */
     public void fit(List<Pair<Tree, INDArray>> labeledTrees) {
         for(Pair<Tree, INDArray> labeledTree : labeledTrees) {
@@ -237,7 +237,8 @@ public class RNN implements Serializable {
                 INDArray v2 = v1.mmul(logActual);
                 gmap.get(i).set(j, v2);
             }
-// curr
+
+        //
     }
 
     protected INDArray transform(String how, INDArray what) {
