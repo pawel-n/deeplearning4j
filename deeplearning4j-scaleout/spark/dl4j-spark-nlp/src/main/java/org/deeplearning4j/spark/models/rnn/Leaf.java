@@ -1,5 +1,7 @@
 package org.deeplearning4j.spark.models.rnn;
 
-public class Leaf<A> extends Tree<A> {
-    public A value;
+import org.nd4j.linalg.api.ndarray.INDArray;
+
+public class Leaf extends Tree {
+    public INDArray value;
 }
