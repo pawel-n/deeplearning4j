@@ -128,21 +128,19 @@ public class RNN implements Serializable {
      * @param tree
      * @return (i, j, k) -> gradient of foldTree_k function with respect to combinator_ij.
      */
-    public ArrayList<ArrayList<INDArray>> foldTreeGradWithRespectToCombinator(Tree tree) {
+    public INDArray[][] foldTreeGradWithRespectToCombinator(Tree tree) {
         if (tree instanceof Leaf) {
-            ArrayList<ArrayList<INDArray>> gradient = emptyGradient();
+            INDArray[][] gradient = emptyGradient();
             for(int i = 0; i < combinator.rows(); i++)
                 for(int j = 0; j < combinator.columns(); i++) {
                     INDArray vec = Nd4j.zeros(combinator.rows());
-                    gradient.get(i).set(j, vec);
+                    gradient[i][j] = vec;
                 }
             return gradient;
         } else {
             Node node = (Node) tree;
-            ArrayList<ArrayList<INDArray>> leftGradient =
-                    foldTreeGradWithRespectToCombinator(node.left);
-            ArrayList<ArrayList<INDArray>> rightGradient =
-                    foldTreeGradWithRespectToCombinator(node.right);
+            INDArray[][] leftGradient = foldTreeGradWithRespectToCombinator(node.left);
+            INDArray[][] rightGradient = foldTreeGradWithRespectToCombinator(node.right);
             INDArray leftValue = foldTree(node.left);
             INDArray rightValue = foldTree(node.right);
             INDArray nodeValue = foldTree(node);
@@ -153,18 +151,17 @@ public class RNN implements Serializable {
             // [leftValue rightValue 1]
             INDArray v = Nd4j.appendBias(leftValue, rightValue);
 
-            ArrayList<ArrayList<INDArray>> gradient = emptyGradient();
+            INDArray[][] gradient = emptyGradient();
             for(int i = 0; i < combinator.rows(); i++)
                 for(int j = 0; j < combinator.columns(); j++) {
                     // [leftValue' rightValue' 0]
-                    INDArray vPrime = Nd4j.vstack(
-                            leftGradient.get(i).get(j), rightGradient.get(i).get(j), Nd4j.zeros(1));
+                    INDArray vPrime = Nd4j.vstack(leftGradient[i][j], rightGradient[i][j], Nd4j.zeros(1));
                     INDArray nodeValuePrime = combinator.mulColumnVector(vPrime);
                     nodeValuePrime = nodeValuePrime.putScalar(i, nodeValuePrime.getDouble(i) + v.getDouble(j));
                     nodeValuePrime = nodeValuePrime.mul(nodeValueTWD);
                     assert isValidOutVec(nodeValuePrime);
 
-                    gradient.get(i).set(j, nodeValuePrime);
+                    gradient[i][j] = nodeValuePrime;
                 }
             return gradient;
         }
@@ -190,8 +187,8 @@ public class RNN implements Serializable {
      * @param tree
      * @return (i, j, k) -> gradient of predict_k function with respect to combinator_ij
      */
-    public ArrayList<ArrayList<INDArray>> predictGradWithRespectToCombinator(Tree tree) {
-        ArrayList<ArrayList<INDArray>> treeGradient = foldTreeGradWithRespectToCombinator(tree);
+    public INDArray[][] predictGradWithRespectToCombinator(Tree tree) {
+        INDArray[][] treeGradient = foldTreeGradWithRespectToCombinator(tree);
 
         INDArray treeValue = foldTree(tree);
         assert isValidInVec(treeValue);
@@ -204,17 +201,17 @@ public class RNN implements Serializable {
         INDArray w = transformWithDerivative(settings.outputActivation, v);
         assert isValidOutVec(w);
 
-        ArrayList<ArrayList<INDArray>> gradient = emptyGradient();
+        INDArray[][] gradient = emptyGradient();
         for(int i = 0; i < combinator.rows(); i++)
             for(int j = 0; j < combinator.columns(); j++) {
                 // treeValue'
-                INDArray treeValuePrime = treeGradient.get(i).get(j);
+                INDArray treeValuePrime = treeGradient[i][j];
 
                 INDArray vPrime = judge.mulColumnVector(treeValuePrime);
                 vPrime = vPrime.mmul(w);
                 assert isValidOutVec(vPrime);
 
-                gradient.get(i).set(j, vPrime);
+                gradient[i][j] = vPrime;
             }
 
         return gradient;
@@ -276,17 +273,17 @@ public class RNN implements Serializable {
         INDArray actual = predict(tree);
         assert isValidOutVec(expected) && isValidOutVec(actual);
 
-        ArrayList<ArrayList<INDArray>> predictGradient = predictGradWithRespectToCombinator(tree);
+        INDArray[][] predictGradient = predictGradWithRespectToCombinator(tree);
 
-        ArrayList<ArrayList<INDArray>> gradient = emptyGradient();
+        INDArray[][] gradient = emptyGradient();
 
         // log
         INDArray actualTWD = transformWithDerivative("log", actual);
         for(int i = 0; i < combinator.rows(); i++)
             for(int j = 0; j < combinator.columns(); j++) {
-                INDArray logActualPrime = predictGradient.get(i).get(j);
+                INDArray logActualPrime = predictGradient[i][j];
                 logActualPrime = logActualPrime.mmul(actualTWD);
-                gradient.get(i).set(j, logActualPrime);
+                gradient[i][j] = logActualPrime;
             }
 
         // dot product
@@ -294,11 +291,11 @@ public class RNN implements Serializable {
         INDArray onesMinusExpectedT = Nd4j.ones(1, settings.outSize).subi(expectedT);
         for(int i = 0; i < combinator.rows(); i++)
             for(int j = 0; j < combinator.columns(); j++) {
-                INDArray gradientIJ = gradient.get(i).get(j);
+                INDArray gradientIJ = gradient[i][j];
                 INDArray positive = onesMinusExpectedT.mulColumnVector(gradientIJ);
                 INDArray negative = expectedT.mulColumnVector(gradientIJ);
                 INDArray substraction = positive.sub(negative);
-                gradient.get(i).set(j, substraction);
+                gradient[i][j] = substraction;
             }
 
         // bias
@@ -308,7 +305,7 @@ public class RNN implements Serializable {
         for(int i = 0; i < combinator.rows(); i++)
             for(int j = 0; j < combinator.columns(); j++) {
                 Double tmp1 = flatGradient.getDouble(i, j);
-                Double tmp2 = gradient.get(i).get(j).getDouble(0);
+                Double tmp2 = gradient[i][j].getDouble(0);
                 flatGradient.put(i, j, tmp1 + tmp2);
             }
 
@@ -350,14 +347,8 @@ public class RNN implements Serializable {
         return Nd4j.getExecutioner().execAndReturn(accumulation).currentResult().doubleValue();
     }
 
-    protected ArrayList<ArrayList<INDArray>> emptyGradient() {
-        ArrayList<ArrayList<INDArray>> map = new ArrayList<>();
-        for (int i = 0; i < combinator.rows(); i++) {
-            ArrayList<INDArray> row = new ArrayList<>();
-            for (int j = 0; j < combinator.columns(); j++)
-                row.add(null);
-            map.add(row);
-        }
+    protected INDArray[][] emptyGradient() {
+        INDArray[][] map = new INDArray[combinator.rows()][combinator.columns()];
         return map;
     }
 
