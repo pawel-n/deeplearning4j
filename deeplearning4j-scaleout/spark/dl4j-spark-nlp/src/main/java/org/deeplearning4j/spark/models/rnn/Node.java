@@ -4,6 +4,10 @@ public class Node extends Tree {
     public Tree left = null;
     public Tree right = null;
 
+    public Node(Tree left, Tree right) {
+        this.left = left;
+        this.right = right;
+    }
     @Override
     public void clearCache() {
         super.clearCache();

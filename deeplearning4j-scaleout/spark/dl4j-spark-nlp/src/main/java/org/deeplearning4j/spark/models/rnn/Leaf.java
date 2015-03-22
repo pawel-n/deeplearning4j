@@ -3,4 +3,8 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 
 public class Leaf extends Tree {
     public INDArray value;
+
+    public Leaf(INDArray value) {
+        this.value = value;
+    }
 }

@@ -16,7 +16,7 @@ import java.util.List;
  * Created by tomasz on 3/19/15.
  */
 public class RNN implements Serializable {
-    public class Settings implements Serializable {
+    public static class Settings implements Serializable {
         public Settings(int inSize) {
             this.inSize = inSize;
             this.noise = 0.01;
@@ -63,6 +63,18 @@ public class RNN implements Serializable {
     }
 
     /**
+     * Creates RNN with specified combinator and judge.
+     * @param settings
+     * @param combinator
+     * @param judge
+     */
+    public RNN(Settings settings, INDArray combinator, INDArray judge) {
+        this.settings = settings;
+        this.combinator = combinator;
+        this.judge = judge;
+    }
+
+    /**
      * Trains the network on a set of trees.
      * @param labeledTrees The trees with labels.
      */
@@ -100,7 +112,7 @@ public class RNN implements Serializable {
                 assert isValidInVec(left) && isValidInVec(right);
 
                 INDArray combined = Nd4j.appendBias(left, right);
-                INDArray vec = combinator.mulColumnVector(combined);
+                INDArray vec = combinator.mmul(combined);
                 assert isValidInVec(vec);
 
                 INDArray transformed = transform(settings.layerActivation, vec);
