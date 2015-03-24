@@ -42,7 +42,7 @@ public class RNN implements Serializable {
     public Settings settings;
 
     /**
-     * Creates a tabular rasa RNN.
+     * Creates a clean RNN.
      */
     public RNN(Settings settings) {
         this.settings = settings;
